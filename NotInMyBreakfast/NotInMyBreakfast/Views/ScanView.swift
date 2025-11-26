@@ -153,7 +153,7 @@ struct ScanView: View {
                 .padding(.horizontal)
 
             if let product = viewModel.product {
-                NavigationLink("View Results", destination: ResultsView(product: product))
+                NavigationLink("View Results", destination: ResultsView(product: product, image: pickedImage))
                     .padding()
             }
 

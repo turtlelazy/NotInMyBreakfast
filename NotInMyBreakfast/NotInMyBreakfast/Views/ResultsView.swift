@@ -7,22 +7,26 @@
 
 import Foundation
 import SwiftUI
+import UIKit
 
 // Uses centralized `Models/IngredientCatalog.swift` when available.
 
 struct ResultsView: View {
     private let details: ProductDetails
+    private let productImage: UIImage?
     @EnvironmentObject var blacklistStore: BlacklistStore
     @State private var showCatalogPicker: Bool = false
 
     // Accept ProductDetails directly
-    init(product: ProductDetails) {
+    init(product: ProductDetails, image: UIImage? = nil) {
         self.details = product
+        self.productImage = image
     }
 
     // Accept the API wrapper Product and extract details safely
-    init(product: Product) {
-        self.details = product.product ?? ProductDetails(productName: nil, ingredientsText: nil, ingredients: nil)
+    init(product: Product, image: UIImage? = nil) {
+        self.details = product.product ?? ProductDetails(productName: nil, ingredientsText: nil, ingredients: nil, imageUrl: nil)
+        self.productImage = image
     }
 
     var body: some View {
@@ -30,9 +34,75 @@ struct ResultsView: View {
             Text("Product: \(details.productName ?? "Unknown")")
                 .font(.headline)
 
-            Text("Ingredients: \(details.ingredientsText ?? "N/A")")
+            // Product image (if available) — prefer the image passed from the scanner/picker
+            if let img = productImage {
+                Image(uiImage: img)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 200)
+                    .cornerRadius(8)
+                    .shadow(radius: 4)
+            } else if let imageUrlString = details.imageUrl, let url = URL(string: imageUrlString) {
+                // Prefer API-provided image when available
+                if #available(iOS 15.0, *) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .empty:
+                            ProgressView()
+                                .frame(height: 200)
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFit()
+                                .frame(height: 200)
+                                .cornerRadius(8)
+                                .shadow(radius: 4)
+                        case .failure:
+                            Rectangle()
+                                .fill(Color.secondary.opacity(0.12))
+                                .frame(height: 200)
+                                .cornerRadius(8)
+                                .overlay(Image(systemName: "photo").font(.largeTitle).foregroundColor(.secondary))
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
+                } else {
+                    // Fallback: show placeholder when AsyncImage isn't available
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.12))
+                        .frame(height: 200)
+                        .cornerRadius(8)
+                        .overlay(
+                            VStack {
+                                Image(systemName: "photo")
+                                    .font(.largeTitle)
+                                    .foregroundColor(.secondary)
+                                Text("No product image")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        )
+                }
+            } else {
+                // Placeholder when no image is available
+                Rectangle()
+                    .fill(Color.secondary.opacity(0.12))
+                    .frame(height: 200)
+                    .cornerRadius(8)
+                    .overlay(
+                        VStack {
+                            Image(systemName: "photo")
+                                .font(.largeTitle)
+                                .foregroundColor(.secondary)
+                            Text("No product image")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    )
+            }
 
-            // Use shared blacklist store to find matches
+            // Use shared blacklist store to find matches (only show blacklisted items)
             let matchedIngredients = details.ingredients?.filter { ingredient in
                 guard let text = ingredient.text else { return false }
                 return blacklistStore.items.contains { text.localizedCaseInsensitiveContains($0) }

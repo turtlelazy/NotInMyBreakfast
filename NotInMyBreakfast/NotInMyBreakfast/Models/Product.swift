@@ -16,4 +16,7 @@ struct ProductDetails: Codable {
     let productName: String?
     let ingredientsText: String?
     let ingredients: [Ingredient]?
+
+    // Primary image URL provided by the OpenFoodFacts API (e.g. "image_url")
+    let imageUrl: String?
 }

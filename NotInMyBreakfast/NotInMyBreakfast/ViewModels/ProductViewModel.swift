@@ -39,7 +39,9 @@ class ProductViewModel: ObservableObject {
             }
 
             do {
-                let productResponse = try JSONDecoder().decode(Product.self, from: data)
+                let decoder = JSONDecoder()
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
+                let productResponse = try decoder.decode(Product.self, from: data)
                 DispatchQueue.main.async {
                     self.product = productResponse.product
                     print("ProductViewModel: decoded product: \(String(describing: productResponse.product))")
