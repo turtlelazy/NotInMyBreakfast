@@ -11,6 +11,7 @@ import SwiftUI
 struct BlacklistView: View {
     @State private var items: [String] = []
     @State private var newIngredient: String = ""
+    @State private var showCatalogPicker: Bool = false
     @State private var showConfirmDeleteIndex: Int? = nil
     private let defaultsKey = "blacklist_items_v1"
 
@@ -26,6 +27,12 @@ struct BlacklistView: View {
                         .padding(.vertical, 8)
                         .background(Color.accentColor)
                         .foregroundColor(.white)
+                        .cornerRadius(8)
+                }
+                Button(action: { showCatalogPicker = true }) {
+                    Image(systemName: "plus.square.on.square")
+                        .padding(8)
+                        .background(Color(UIColor.secondarySystemBackground))
                         .cornerRadius(8)
                 }
             }
@@ -77,6 +84,18 @@ struct BlacklistView: View {
             Text("Remove \(items.indices.contains(idx) ? items[idx] : "this item") from blacklist?")
         }
         .onAppear(perform: loadItems)
+        .sheet(isPresented: $showCatalogPicker) {
+            CatalogPickerView(onAdd: { selections in
+                for s in selections {
+                    let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty && !items.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) {
+                        items.append(trimmed)
+                    }
+                }
+                saveItems()
+                showCatalogPicker = false
+            })
+        }
     }
 
     private func addIngredient() {
@@ -103,6 +122,90 @@ struct BlacklistView: View {
     private func saveItems() {
         if let data = try? JSONEncoder().encode(items) {
             UserDefaults.standard.set(data, forKey: defaultsKey)
+        }
+    }
+}
+
+// Simple local catalog & picker for adding ingredients from a predefined list
+struct CatalogPickerView: View {
+    @Environment(\.presentationMode) private var presentation
+    @State private var search: String = ""
+    @State private var selected: Set<String> = []
+
+    var onAdd: ([String]) -> Void
+
+    private var catalog: [String] = {
+        // Try to load a bundled `ingredients.json` (array of strings). If the project
+        // doesn't include `Models/IngredientCatalog.swift` in the target, this still
+        // allows using a bundled JSON resource. Falls back to a compact built-in list.
+        if let url = Bundle.main.url(forResource: "ingredients", withExtension: "json"),
+           let data = try? Data(contentsOf: url),
+           let decoded = try? JSONDecoder().decode([String].self, from: data) {
+            return decoded.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .reduce(into: [String]()) { acc, s in
+                    if !acc.contains(where: { $0.caseInsensitiveCompare(s) == .orderedSame }) {
+                        acc.append(s)
+                    }
+                }
+                .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        }
+
+        return [
+            "Sugar", "Salt", "Palm Oil", "Soy", "Soya Lecithin", "Peanuts", "Peanut",
+            "Milk", "Whey", "Casein", "Egg", "Gelatin", "Wheat", "Barley",
+            "Rye", "Oats", "Gluten", "Almonds", "Cashews", "Hazelnuts", "Tree Nuts",
+            "Sesame", "Mustard", "Celery", "Fish", "Crustaceans", "Molluscs", "Lupin",
+            "Sulphites", "Citric Acid", "Natural Flavour", "Artificial Flavour", "Corn",
+            "Starch", "Soy Lecithin", "Monosodium Glutamate", "MSG", "Hydrogenated Vegetable Oil",
+            "Vegetable Oil", "Palm Kernel Oil", "Canola", "Rapeseed", "Beef", "Pork",
+            "Chicken", "Fish Oil"
+        ]
+    }()
+
+    init(onAdd: @escaping ([String]) -> Void) {
+        self.onAdd = onAdd
+    }
+
+    private var filtered: [String] {
+        let term = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        if term.isEmpty { return catalog }
+        return catalog.filter { $0.localizedCaseInsensitiveContains(term) }
+    }
+
+    var body: some View {
+        NavigationView {
+            VStack {
+                TextField("Search catalog", text: $search)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .padding()
+
+                List(filtered, id: \.self) { item in
+                    Button(action: {
+                        if selected.contains(item) { selected.remove(item) }
+                        else { selected.insert(item) }
+                    }) {
+                        HStack {
+                            Text(item)
+                            Spacer()
+                            if selected.contains(item) { Image(systemName: "checkmark") }
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            }
+            .navigationTitle("Add from Catalog")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { presentation.wrappedValue.dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add Selected") {
+                        onAdd(Array(selected))
+                    }
+                    .disabled(selected.isEmpty)
+                }
+            }
         }
     }
 }
