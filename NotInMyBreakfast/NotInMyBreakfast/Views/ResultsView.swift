@@ -8,57 +8,7 @@
 import Foundation
 import SwiftUI
 
-// Local ingredient catalog (keeps picker working even if separate catalog file isn't in the project)
-private struct IngredientCatalog {
-    static let all: [String] = [
-        "Sugar",
-        "Salt",
-        "Palm Oil",
-        "Soy",
-        "Soya Lecithin",
-        "Peanuts",
-        "Peanut",
-        "Milk",
-        "Whey",
-        "Casein",
-        "Egg",
-        "Gelatin",
-        "Wheat",
-        "Barley",
-        "Rye",
-        "Oats",
-        "Gluten",
-        "Almonds",
-        "Cashews",
-        "Hazelnuts",
-        "Tree Nuts",
-        "Sesame",
-        "Mustard",
-        "Celery",
-        "Fish",
-        "Crustaceans",
-        "Molluscs",
-        "Lupin",
-        "Sulphites",
-        "Citric Acid",
-        "Natural Flavour",
-        "Artificial Flavour",
-        "Corn",
-        "Starch",
-        "Soy Lecithin",
-        "Monosodium Glutamate",
-        "MSG",
-        "Hydrogenated Vegetable Oil",
-        "Vegetable Oil",
-        "Palm Kernel Oil",
-        "Canola",
-        "Rapeseed",
-        "Beef",
-        "Pork",
-        "Chicken",
-        "Fish Oil"
-    ]
-}
+// Uses centralized `Models/IngredientCatalog.swift` when available.
 
 struct ResultsView: View {
     private let details: ProductDetails
@@ -110,12 +60,35 @@ struct ResultsView: View {
         .padding()
         .navigationTitle("Results")
         .sheet(isPresented: $showCatalogPicker) {
-            IngredientCatalogPicker(onAdd: { selections in
+            IngredientCatalogPicker(catalog: productCatalog(), onAdd: { selections in
                 for s in selections { blacklistStore.add(s) }
                 showCatalogPicker = false
             })
             .environmentObject(blacklistStore)
         }
+    }
+
+    // Build a catalog from the product's API ingredient list if available,
+    // otherwise fall back to the bundled/global catalog.
+    private func productCatalog() -> [String] {
+        guard let ingredients = details.ingredients, !ingredients.isEmpty else {
+            return IngredientCatalog.load()
+        }
+
+        let texts = ingredients.compactMap { $0.text?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        var seen = Set<String>()
+        var ordered: [String] = []
+        for s in texts {
+            let key = s.lowercased()
+            if !seen.contains(key) {
+                seen.insert(key)
+                ordered.append(s)
+            }
+        }
+
+        return ordered.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 }
 
@@ -125,13 +98,15 @@ private struct IngredientCatalogPicker: View {
     @State private var search: String = ""
     @State private var selected: Set<String> = []
 
+    var catalog: [String]
     var onAdd: ([String]) -> Void
 
     private var filtered: [String] {
+        let source = catalog
         if search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return IngredientCatalog.all
+            return source
         }
-        return IngredientCatalog.all.filter { $0.localizedCaseInsensitiveContains(search) }
+        return source.filter { $0.localizedCaseInsensitiveContains(search) }
     }
 
     var body: some View {
