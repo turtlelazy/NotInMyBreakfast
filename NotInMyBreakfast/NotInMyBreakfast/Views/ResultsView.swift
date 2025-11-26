@@ -9,17 +9,27 @@ import Foundation
 import SwiftUI
 
 struct ResultsView: View {
-    let product: ProductDetails
+    private let details: ProductDetails
     @State private var blacklist: [String] = ["Gelatin", "Peanuts", "Palm Oil"]
+
+    // Accept ProductDetails directly
+    init(product: ProductDetails) {
+        self.details = product
+    }
+
+    // Accept the API wrapper Product and extract details safely
+    init(product: Product) {
+        self.details = product.product ?? ProductDetails(productName: nil, ingredientsText: nil, ingredients: nil)
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Product: \(product.productName ?? "Unknown")")
+            Text("Product: \(details.productName ?? "Unknown")")
                 .font(.headline)
             
-            Text("Ingredients: \(product.ingredientsText ?? "N/A")")
+            Text("Ingredients: \(details.ingredientsText ?? "N/A")")
             
-            let matchedIngredients = product.ingredients?.filter { ingredient in
+            let matchedIngredients = details.ingredients?.filter { ingredient in
                 guard let text = ingredient.text else { return false }
                 return blacklist.contains { text.localizedCaseInsensitiveContains($0) }
             } ?? []
