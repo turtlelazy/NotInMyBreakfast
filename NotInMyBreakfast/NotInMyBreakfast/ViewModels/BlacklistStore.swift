@@ -2,22 +2,24 @@
 //  BlacklistStore.swift
 //  NotInMyBreakfast
 //
-//  Observable store for blacklisted ingredients persisted to UserDefaults
+//  Observable store for blacklisted ingredients persisted with @AppStorage
 //
 
 import Foundation
 import Combine
+import SwiftUI
 
 final class BlacklistStore: ObservableObject {
+    @AppStorage("blacklist_items_v1") private var itemsData: Data = Data()
+    
     @Published var items: [String] = [] {
         didSet { save() }
     }
 
-    private let defaultsKey = "blacklist_items_v1"
-
     init(defaults: [String] = ["Gelatin", "Peanuts", "Palm Oil"]) {
-        if let data = UserDefaults.standard.data(forKey: defaultsKey),
-           let decoded = try? JSONDecoder().decode([String].self, from: data) {
+        // Load from AppStorage
+        if !itemsData.isEmpty,
+           let decoded = try? JSONDecoder().decode([String].self, from: itemsData) {
             self.items = decoded
         } else {
             self.items = defaults
@@ -45,7 +47,7 @@ final class BlacklistStore: ObservableObject {
 
     private func save() {
         if let data = try? JSONEncoder().encode(items) {
-            UserDefaults.standard.set(data, forKey: defaultsKey)
+            itemsData = data
         }
     }
 }

@@ -2,18 +2,19 @@
 //  HistoryStore.swift
 //  NotInMyBreakfast
 //
-//  Observable store for scan history persisted to UserDefaults
+//  Observable store for scan history persisted with @AppStorage
 //
 
 import Foundation
 import Combine
+import SwiftUI
 
 final class HistoryStore: ObservableObject {
+    @AppStorage("scan_history_v1") private var itemsData: Data = Data()
+    
     @Published var items: [HistoryItem] = [] {
         didSet { save() }
     }
-    
-    private let defaultsKey = "scan_history_v1"
     
     init() {
         load()
@@ -45,15 +46,15 @@ final class HistoryStore: ObservableObject {
     }
     
     private func load() {
-        if let data = UserDefaults.standard.data(forKey: defaultsKey),
-           let decoded = try? JSONDecoder().decode([HistoryItem].self, from: data) {
+        if !itemsData.isEmpty,
+           let decoded = try? JSONDecoder().decode([HistoryItem].self, from: itemsData) {
             self.items = decoded
         }
     }
     
     private func save() {
         if let data = try? JSONEncoder().encode(items) {
-            UserDefaults.standard.set(data, forKey: defaultsKey)
+            itemsData = data
         }
     }
 }
