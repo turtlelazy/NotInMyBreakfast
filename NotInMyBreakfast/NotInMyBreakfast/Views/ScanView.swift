@@ -14,6 +14,8 @@ struct ScanView: View {
     @State private var scannedCode: String = ""
     @State private var isScanning: Bool = false
     @ObservedObject var viewModel = ProductViewModel()
+    @EnvironmentObject var historyStore: HistoryStore
+    @EnvironmentObject var blacklistStore: BlacklistStore
     enum InputMode { case manual, camera, image }
     @State private var mode: InputMode = .camera
     @State private var showImagePicker: Bool = false
@@ -155,6 +157,10 @@ struct ScanView: View {
             if let product = viewModel.product {
                 NavigationLink("View Results", destination: ResultsView(product: product, image: pickedImage))
                     .padding()
+                    .onAppear {
+                        // Save to history when product is successfully fetched
+                        saveToHistory(product: product)
+                    }
             }
 
             if let error = viewModel.errorMessage {
@@ -189,5 +195,25 @@ struct ScanView: View {
         .sheet(isPresented: $showImagePicker) {
             ImagePicker(selectedImage: $pickedImage)
         }
+    }
+    
+    // Helper function to save scan to history
+    private func saveToHistory(product: ProductDetails) {
+        let productName = product.productName ?? "Unknown Product"
+        
+        // Check if product has blacklisted ingredients
+        let matchedIngredients = product.ingredients?.filter { ingredient in
+            guard let text = ingredient.text else { return false }
+            return blacklistStore.items.contains { text.localizedCaseInsensitiveContains($0) }
+        } ?? []
+        
+        let hadBlacklistedIngredients = !matchedIngredients.isEmpty
+        
+        // Save to history
+        historyStore.addScan(
+            barcode: scannedCode,
+            productName: productName,
+            hadBlacklistedIngredients: hadBlacklistedIngredients
+        )
     }
 }
