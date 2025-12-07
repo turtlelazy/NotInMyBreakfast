@@ -19,11 +19,12 @@ final class HistoryStore: ObservableObject {
         load()
     }
     
-    func addScan(barcode: String, productName: String, hadBlacklistedIngredients: Bool) {
+    func addScan(barcode: String, productName: String, hadBlacklistedIngredients: Bool, blacklistedIngredients: [String] = []) {
         let item = HistoryItem(
             barcode: barcode,
             productName: productName,
-            hadBlacklistedIngredients: hadBlacklistedIngredients
+            hadBlacklistedIngredients: hadBlacklistedIngredients,
+            blacklistedIngredients: blacklistedIngredients
         )
         // Add to beginning of array (most recent first)
         items.insert(item, at: 0)

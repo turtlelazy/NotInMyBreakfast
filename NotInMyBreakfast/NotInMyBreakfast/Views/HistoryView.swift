@@ -88,6 +88,7 @@ struct HistoryView: View {
     
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US")
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter.string(from: date)
@@ -139,6 +140,26 @@ struct HistoryDetailView: View {
             .background(item.hadBlacklistedIngredients ? Color.orange.opacity(0.1) : Color.green.opacity(0.1))
             .cornerRadius(8)
             
+            if item.hadBlacklistedIngredients && !item.blacklistedIngredients.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Blacklisted Ingredients:")
+                        .font(.headline)
+                        .padding(.top, 8)
+                    
+                    ForEach(item.blacklistedIngredients, id: \.self) { ingredient in
+                        HStack {
+                            Image(systemName: "circle.fill")
+                                .font(.system(size: 6))
+                                .foregroundColor(.orange)
+                            Text(ingredient)
+                                .font(.subheadline)
+                        }
+                        .padding(.leading, 8)
+                    }
+                }
+                .padding(.top, 8)
+            }
+            
             Spacer()
         }
         .padding()
@@ -147,6 +168,7 @@ struct HistoryDetailView: View {
     
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US")
         formatter.dateStyle = .long
         formatter.timeStyle = .medium
         return formatter.string(from: date)

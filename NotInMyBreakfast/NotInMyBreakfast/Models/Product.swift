@@ -12,7 +12,7 @@ struct Product: Codable {
     let product: ProductDetails?
 }
 
-struct ProductDetails: Codable {
+struct ProductDetails: Codable, Equatable {
     let productName: String?
     let ingredientsText: String?
     let ingredients: [Ingredient]?

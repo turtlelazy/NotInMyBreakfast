@@ -21,6 +21,7 @@ struct ScanView: View {
     @State private var showImagePicker: Bool = false
     @State private var pickedImage: UIImage?
     @State private var manualCode: String = ""
+    @State private var lastSavedBarcode: String = ""
 
     var body: some View {
         VStack(spacing: 16) {
@@ -157,10 +158,6 @@ struct ScanView: View {
             if let product = viewModel.product {
                 NavigationLink("View Results", destination: ResultsView(product: product, image: pickedImage))
                     .padding()
-                    .onAppear {
-                        // Save to history when product is successfully fetched
-                        saveToHistory(product: product)
-                    }
             }
 
             if let error = viewModel.errorMessage {
@@ -174,6 +171,12 @@ struct ScanView: View {
         .onChange(of: scannedCode) { newCode in
             guard !newCode.isEmpty else { return }
             viewModel.fetchProduct(barcode: newCode)
+        }
+        .onChange(of: viewModel.product) { product in
+            // Save to history when product is successfully fetched, only once per barcode
+            guard let product = product, scannedCode != lastSavedBarcode, !scannedCode.isEmpty else { return }
+            lastSavedBarcode = scannedCode
+            saveToHistory(product: product)
         }
         .onChange(of: pickedImage) { image in
             guard let image = image else { return }
@@ -191,6 +194,7 @@ struct ScanView: View {
             // Reset any previous state
             scannedCode = ""
             isScanning = false
+            lastSavedBarcode = ""
         }
         .sheet(isPresented: $showImagePicker) {
             ImagePicker(selectedImage: $pickedImage)
@@ -208,12 +212,14 @@ struct ScanView: View {
         } ?? []
         
         let hadBlacklistedIngredients = !matchedIngredients.isEmpty
+        let blacklistedList = matchedIngredients.compactMap { $0.text }
         
         // Save to history
         historyStore.addScan(
             barcode: scannedCode,
             productName: productName,
-            hadBlacklistedIngredients: hadBlacklistedIngredients
+            hadBlacklistedIngredients: hadBlacklistedIngredients,
+            blacklistedIngredients: blacklistedList
         )
     }
 }
