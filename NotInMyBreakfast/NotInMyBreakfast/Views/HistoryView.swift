@@ -10,79 +10,110 @@ import SwiftUI
 
 struct HistoryView: View {
     @EnvironmentObject var historyStore: HistoryStore
+    @EnvironmentObject var themeManager: ThemeManager
     @State private var showDeleteConfirmation: Bool = false
     
     var body: some View {
-        Group {
-            if historyStore.items.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.system(size: 60))
-                        .foregroundColor(.secondary)
-                    Text("No scan history yet")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
-                    Text("Scanned products will appear here")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+        ZStack {
+            themeManager.backgroundColor
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Header
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Scan History")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(themeManager.textColor)
+                    Text("\(historyStore.items.count) scans total")
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundColor(themeManager.secondaryTextColor)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List {
-                    ForEach(historyStore.items) { item in
-                        NavigationLink(destination: HistoryDetailView(item: item)) {
-                            VStack(alignment: .leading, spacing: 6) {
-                                HStack {
-                                    Text(item.productName)
-                                        .font(.headline)
-                                    Spacer()
-                                    if item.hadBlacklistedIngredients {
-                                        Image(systemName: "exclamationmark.triangle.fill")
-                                            .foregroundColor(.orange)
-                                    } else {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundColor(.green)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                
+                if historyStore.items.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 60))
+                            .foregroundColor(themeManager.primaryColor)
+                        Text("No scan history yet")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(themeManager.textColor)
+                        Text("Scanned products will appear here")
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundColor(themeManager.secondaryTextColor)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 12) {
+                            ForEach(historyStore.items) { item in
+                                NavigationLink(destination: HistoryDetailView(item: item)
+                                    .environmentObject(themeManager)) {
+                                    HStack(spacing: 12) {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            HStack {
+                                                Text(item.productName)
+                                                    .font(.system(size: 16, weight: .semibold))
+                                                    .foregroundColor(themeManager.textColor)
+                                                
+                                                Spacer()
+                                                
+                                                if item.hadBlacklistedIngredients {
+                                                    Image(systemName: "exclamationmark.triangle.fill")
+                                                        .font(.system(size: 16))
+                                                        .foregroundColor(themeManager.warningColor)
+                                                } else {
+                                                    Image(systemName: "checkmark.circle.fill")
+                                                        .font(.system(size: 16))
+                                                        .foregroundColor(themeManager.successColor)
+                                                }
+                                            }
+                                            
+                                            Text("Barcode: \(item.barcode)")
+                                                .font(.system(size: 12, weight: .regular))
+                                                .foregroundColor(themeManager.secondaryTextColor)
+                                            
+                                            Text(formatDate(item.timestamp))
+                                                .font(.system(size: 11, weight: .regular))
+                                                .foregroundColor(themeManager.secondaryTextColor)
+                                                .opacity(0.7)
+                                        }
                                     }
+                                    .modernCard(theme: themeManager)
                                 }
-                                
-                                Text("Barcode: \(item.barcode)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                
-                                Text(formatDate(item.timestamp))
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
                             }
-                            .padding(.vertical, 4)
+                        }
+                        .padding(16)
+                    }
+                }
+                
+                if !historyStore.items.isEmpty {
+                    VStack(spacing: 8) {
+                        Button(action: { showDeleteConfirmation = true }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "trash.circle.fill")
+                                Text("Clear All History")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .foregroundColor(themeManager.errorColor)
+                            .padding(12)
+                            .background(themeManager.errorColor.opacity(0.1))
+                            .cornerRadius(12)
                         }
                     }
-                    .onDelete(perform: deleteItems)
+                    .padding(16)
                 }
             }
         }
-        .navigationTitle("Scan History")
-        .toolbar {
-            if !historyStore.items.isEmpty {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showDeleteConfirmation = true }) {
-                        Image(systemName: "trash")
-                    }
-                }
-            }
-        }
+        .navigationBarTitleDisplayMode(.inline)
         .alert("Clear History", isPresented: $showDeleteConfirmation) {
             Button("Clear All", role: .destructive) {
                 historyStore.removeAll()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Are you sure you want to clear all scan history?")
-        }
-    }
-    
-    private func deleteItems(at offsets: IndexSet) {
-        for index in offsets {
-            historyStore.remove(at: index)
+            Text("Are you sure you want to clear all scan history? This cannot be undone.")
         }
     }
     
@@ -98,72 +129,109 @@ struct HistoryView: View {
 // Detail view for individual history items
 struct HistoryDetailView: View {
     let item: HistoryItem
+    @EnvironmentObject var themeManager: ThemeManager
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(item.productName)
-                .font(.title2)
-                .bold()
+        ZStack {
+            themeManager.backgroundColor
+                .ignoresSafeArea()
             
-            HStack {
-                Text("Barcode:")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                Text(item.barcode)
-                    .font(.subheadline)
-            }
-            
-            HStack {
-                Text("Scanned:")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                Text(formatDate(item.timestamp))
-                    .font(.subheadline)
-            }
-            
-            Divider()
-            
-            HStack {
-                if item.hadBlacklistedIngredients {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.orange)
-                    Text("Contained blacklisted ingredients")
-                        .font(.subheadline)
-                } else {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                    Text("No blacklisted ingredients found")
-                        .font(.subheadline)
-                }
-            }
-            .padding()
-            .background(item.hadBlacklistedIngredients ? Color.orange.opacity(0.1) : Color.green.opacity(0.1))
-            .cornerRadius(8)
-            
-            if item.hadBlacklistedIngredients && !item.blacklistedIngredients.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Blacklisted Ingredients:")
-                        .font(.headline)
-                        .padding(.top, 8)
-                    
-                    ForEach(item.blacklistedIngredients, id: \.self) { ingredient in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(item.productName)
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundColor(themeManager.textColor)
+                        
                         HStack {
-                            Image(systemName: "circle.fill")
-                                .font(.system(size: 6))
-                                .foregroundColor(.orange)
-                            Text(ingredient)
-                                .font(.subheadline)
+                            Image(systemName: "barcode")
+                                .foregroundColor(themeManager.primaryColor)
+                            Text(item.barcode)
+                                .font(.system(size: 14, weight: .regular))
+                                .foregroundColor(themeManager.secondaryTextColor)
                         }
-                        .padding(.leading, 8)
+                        
+                        HStack {
+                            Image(systemName: "calendar")
+                                .foregroundColor(themeManager.primaryColor)
+                            Text(formatDate(item.timestamp))
+                                .font(.system(size: 14, weight: .regular))
+                                .foregroundColor(themeManager.secondaryTextColor)
+                        }
                     }
+                    .modernCard(theme: themeManager)
+                    
+                    // Status card
+                    HStack(spacing: 12) {
+                        if item.hadBlacklistedIngredients {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 20))
+                                .foregroundColor(themeManager.warningColor)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Contains Blacklisted Items")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(themeManager.textColor)
+                                Text("This product has restricted ingredients")
+                                    .font(.system(size: 12, weight: .regular))
+                                    .foregroundColor(themeManager.secondaryTextColor)
+                            }
+                        } else {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 20))
+                                .foregroundColor(themeManager.successColor)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Safe to Consume")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(themeManager.textColor)
+                                Text("No blacklisted ingredients detected")
+                                    .font(.system(size: 12, weight: .regular))
+                                    .foregroundColor(themeManager.secondaryTextColor)
+                            }
+                        }
+                        Spacer()
+                    }
+                    .modernCard(theme: themeManager)
+                    
+                    if item.hadBlacklistedIngredients && !item.blacklistedIngredients.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Image(systemName: "list.bullet")
+                                    .foregroundColor(themeManager.warningColor)
+                                Text("Blacklisted Ingredients")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(themeManager.textColor)
+                            }
+                            
+                            VStack(spacing: 8) {
+                                ForEach(item.blacklistedIngredients, id: \.self) { ingredient in
+                                    HStack {
+                                        Circle()
+                                            .fill(themeManager.warningColor)
+                                            .frame(width: 6, height: 6)
+                                        Text(ingredient)
+                                            .font(.system(size: 14, weight: .regular))
+                                            .foregroundColor(themeManager.textColor)
+                                        Spacer()
+                                    }
+                                    .padding(8)
+                                    .background(themeManager.cardBackgroundColor)
+                                    .cornerRadius(8)
+                                }
+                            }
+                        }
+                        .padding(16)
+                        .background(themeManager.warningColor.opacity(0.05))
+                        .cornerRadius(16)
+                    }
+                    
+                    Spacer()
                 }
-                .padding(.top, 8)
+                .padding(16)
             }
-            
-            Spacer()
         }
-        .padding()
-        .navigationTitle("Scan Details")
+        .navigationBarTitleDisplayMode(.inline)
     }
     
     private func formatDate(_ date: Date) -> String {

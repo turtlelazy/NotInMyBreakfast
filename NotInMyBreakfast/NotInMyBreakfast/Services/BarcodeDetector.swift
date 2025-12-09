@@ -11,6 +11,9 @@ import Vision
 
 class BarcodeDetector {
     static func detectBarcode(from image: UIImage, completion: @escaping (String?) -> Void) {
+        print("BarcodeDetector: Starting barcode detection for image...")
+        print("BarcodeDetector: Image size: \(image.size), scale: \(image.scale), orientation: \(image.imageOrientation.rawValue)")
+        
         // Ensure we have a CGImage; convert from CIImage if needed
         var workingCGImage: CGImage?
         if let cg = image.cgImage {
@@ -40,30 +43,43 @@ class BarcodeDetector {
             @unknown default: return .up
             }
         }
-
+        // Figure out if this object supports barcode requests
+        // if not, focus on other stuff with manual input
+        // swiftdata implementation
+        
         let request = VNDetectBarcodesRequest { request, error in
             if let error = error {
                 print("BarcodeDetector: VNDetectBarcodesRequest error: \(error.localizedDescription)")
+                DispatchQueue.main.async { completion(nil) }
+                return
             }
 
             if let results = request.results as? [VNBarcodeObservation], !results.isEmpty {
-                // Prefer payloadStringValue. Some barcode types may not provide a payloadStringValue;
-                // in that case, attempt to extract a string from the barcodeDescriptor if present.
-                if let obs = results.first {
+                print("BarcodeDetector: Found \(results.count) barcode(s)")
+                
+                for (index, obs) in results.enumerated() {
+                    print("BarcodeDetector: Barcode \(index): type=\(obs.symbology.rawValue), confidence=\(obs.confidence), bounds=\(obs.boundingBox)")
                     if let payload = obs.payloadStringValue {
+                        print("BarcodeDetector: Successfully detected barcode: \(payload)")
                         DispatchQueue.main.async { completion(payload) }
                         return
+                    } else {
+                        print("BarcodeDetector: No payload string for barcode \(index)")
                     }
-
-                    // No payload string available for this observation
-                    DispatchQueue.main.async { completion(nil) }
-                    return
                 }
+                
+                // No valid payload found in any observation
+                print("BarcodeDetector: No valid payload string in any detected barcode")
+                DispatchQueue.main.async { completion(nil) }
             } else {
-                print("BarcodeDetector: no barcode observations found")
+                print("BarcodeDetector: no barcode observations found - image may be unclear, barcode too small, or unsupported format")
                 DispatchQueue.main.async { completion(nil) }
             }
         }
+        
+        // Leave symbologies unspecified to allow Vision to detect all supported types
+        // This is more flexible than restricting to specific types
+        print("BarcodeDetector: Using default symbologies (all supported types)")
 
         let orientation = cgOrientation(from: image.imageOrientation)
         let handler = VNImageRequestHandler(cgImage: cgImage, orientation: orientation, options: [:])

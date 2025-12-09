@@ -13,174 +13,180 @@ import UIKit
 struct ScanView: View {
     @State private var scannedCode: String = ""
     @State private var isScanning: Bool = false
-    @ObservedObject var viewModel = ProductViewModel()
+    @StateObject private var viewModel = ProductViewModel()
     @EnvironmentObject var historyStore: HistoryStore
     @EnvironmentObject var blacklistStore: BlacklistStore
+    @EnvironmentObject var themeManager: ThemeManager
+    @State private var initialBarcode: String?
+    @State private var isShowingResults: Bool = false
+    @State private var showResults: Bool = false
     enum InputMode { case manual, camera, image }
     @State private var mode: InputMode = .camera
     @State private var showImagePicker: Bool = false
     @State private var pickedImage: UIImage?
     @State private var manualCode: String = ""
     @State private var lastSavedBarcode: String = ""
+    @State private var loadingProgress: Double = 0
+
+    init(initialBarcode: String? = nil) {
+        self._initialBarcode = State(initialValue: initialBarcode)
+    }
 
     var body: some View {
-        VStack(spacing: 16) {
-            ZStack(alignment: .topTrailing) {
-                // Input mode UI: manual / camera preview / image preview
-                switch mode {
-                case .camera:
-                    if isScanning {
-                        BarcodeScannerView(scannedCode: $scannedCode, isScanning: $isScanning)
-                            .frame(height: 360)
-                            .cornerRadius(12)
-                            .shadow(radius: 4)
-                    } else {
-                        Rectangle()
-                            .fill(Color.secondary.opacity(0.2))
-                            .frame(height: 360)
-                            .cornerRadius(12)
-                            .overlay(Text("Camera preview"))
-                    }
-
-                    Button(action: { isScanning.toggle() }) {
-                        Text(isScanning ? "Stop" : "Start")
-                            .padding(8)
-                            .background(Color.black.opacity(0.6))
-                            .foregroundColor(.white)
-                            .cornerRadius(8)
-                            .padding()
-                    }
-
-                case .image:
-                    if let img = pickedImage {
-                        Image(uiImage: img)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(height: 360)
-                            .cornerRadius(12)
-                            .shadow(radius: 4)
-                    } else {
-                        Rectangle()
-                            .fill(Color.secondary.opacity(0.12))
-                            .frame(height: 360)
-                            .cornerRadius(12)
-                            .overlay(Text("No image selected"))
-                    }
-
-                    Button(action: { showImagePicker = true }) {
-                        Text("Pick from Gallery")
-                            .padding(8)
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(8)
-                            .padding()
-                    }
-
-                case .manual:
-                    Rectangle()
-                        .fill(Color.secondary.opacity(0.06))
-                        .frame(height: 120)
-                        .cornerRadius(12)
-                        .overlay(
-                            VStack {
-                                TextField("Enter barcode", text: $manualCode)
-                                    .keyboardType(.numberPad)
-                                    .padding()
-                                    .background(Color.white)
-                                    .cornerRadius(8)
-                                    .padding(.horizontal)
-
-                                Button(action: {
-                                    let code = manualCode.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    guard !code.isEmpty else { return }
-                                    scannedCode = code
-                                    viewModel.fetchProduct(barcode: code)
-                                }) {
-                                    Text("Fetch")
-                                        .padding(8)
-                                        .background(Color.green)
-                                        .foregroundColor(.white)
-                                        .cornerRadius(8)
-                                }
+        ZStack {
+            themeManager.backgroundColor
+                .ignoresSafeArea()
+            
+            VStack(spacing: 16) {
+                // Modern header
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Scan Product")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(themeManager.textColor)
+                    Text("Choose a scanning method")
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundColor(themeManager.secondaryTextColor)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                
+                ScrollView {
+                    VStack(spacing: 16) {
+                        // Mode selection buttons with modern design
+                        HStack(spacing: 12) {
+                            ModeButton(title: "Manual", icon: "keyboard", isSelected: mode == .manual, theme: themeManager) {
+                                mode = .manual
+                                isScanning = false
                             }
-                            .padding()
-                        )
+                            
+                            ModeButton(title: "Camera", icon: "camera.fill", isSelected: mode == .camera, theme: themeManager) {
+                                mode = .camera
+                                pickedImage = nil
+                                isScanning = true
+                            }
+                            
+                            ModeButton(title: "Image", icon: "photo.fill", isSelected: mode == .image, theme: themeManager) {
+                                mode = .image
+                                isScanning = false
+                                showImagePicker = true
+                            }
+                        }
+                        .padding(16)
+                        
+                        // Input mode UI
+                        switch mode {
+                        case .camera:
+                            cameraSection()
+                        case .image:
+                            imageSection()
+                        case .manual:
+                            manualSection()
+                        }
+                        
+                        // Loading progress
+                        if !scannedCode.isEmpty && viewModel.product == nil && viewModel.errorMessage == nil {
+                            VStack(spacing: 12) {
+                                ModernProgressView(progress: $loadingProgress)
+                                    .frame(height: 80)
+                                Text("Fetching product details...")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(themeManager.secondaryTextColor)
+                            }
+                            .modernCard(theme: themeManager)
+                            .padding(16)
+                        }
+                        
+                        // Results
+                        if let product = viewModel.product {
+                            NavigationLink(isActive: $showResults, destination: {
+                                ResultsView(product: product, image: pickedImage)
+                                    .environmentObject(blacklistStore)
+                                    .environmentObject(themeManager)
+                            }, label: {
+                                HStack {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(themeManager.successColor)
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Product Found")
+                                            .font(.system(size: 14, weight: .semibold))
+                                        Text(product.productName ?? "Unknown")
+                                            .font(.system(size: 12, weight: .regular))
+                                            .lineLimit(1)
+                                    }
+                                    
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(themeManager.secondaryTextColor)
+                                }
+                                .foregroundColor(themeManager.textColor)
+                                .modernCard(theme: themeManager)
+                            })
+                            .padding(16)
+                        }
+                        
+                        // Error message
+                        if let error = viewModel.errorMessage {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(themeManager.errorColor)
+                                    Text("Error")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(themeManager.errorColor)
+                                }
+                                Text(error)
+                                    .font(.system(size: 12, weight: .regular))
+                                    .foregroundColor(themeManager.secondaryTextColor)
+                            }
+                            .modernCard(theme: themeManager)
+                            .padding(16)
+                        }
+                    }
                 }
+                
+                Spacer()
             }
-
-            // Mode selection buttons
-            HStack(spacing: 12) {
-                Button(action: {
-                    mode = .manual
-                    isScanning = false
-                }) {
-                    Text("Manual")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(mode == .manual ? Color.accentColor : Color.gray.opacity(0.2))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-
-                Button(action: {
-                    mode = .camera
-                    pickedImage = nil
-                    // start camera automatically
-                    isScanning = true
-                }) {
-                    Text("Camera")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(mode == .camera ? Color.accentColor : Color.gray.opacity(0.2))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-
-                Button(action: {
-                    mode = .image
-                    isScanning = false
-                    showImagePicker = true
-                }) {
-                    Text("Image")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(mode == .image ? Color.accentColor : Color.gray.opacity(0.2))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-            }
-            .padding(.horizontal)
-
-            Text("Scanned Code: \(scannedCode)")
-                .font(.subheadline)
-                .padding(.horizontal)
-
-            if let product = viewModel.product {
-                NavigationLink("View Results", destination: ResultsView(product: product, image: pickedImage))
-                    .padding()
-            }
-
-            if let error = viewModel.errorMessage {
-                Text("Error: \(error)").foregroundColor(.red).padding()
-            }
-
-            Spacer()
         }
-        .padding()
-        .navigationTitle("Scan")
+        .navigationBarTitleDisplayMode(.inline)
         .onChange(of: scannedCode) { newCode in
             guard !newCode.isEmpty else { return }
+            loadingProgress = 0.2
             viewModel.fetchProduct(barcode: newCode)
         }
         .onChange(of: viewModel.product) { product in
-            // Save to history when product is successfully fetched, only once per barcode
-            guard let product = product, scannedCode != lastSavedBarcode, !scannedCode.isEmpty else { return }
-            lastSavedBarcode = scannedCode
-            saveToHistory(product: product)
+            loadingProgress = 1.0
+            if let product = product, scannedCode != lastSavedBarcode, !scannedCode.isEmpty {
+                lastSavedBarcode = scannedCode
+                saveToHistory(product: product)
+            }
+            // Stop scanning and automatically navigate when product is loaded
+            if product != nil {
+                isScanning = false
+                isShowingResults = true
+                // Delay slightly to ensure UI is ready, then trigger navigation
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    showResults = true
+                }
+            }
+        }
+        .onChange(of: showResults) { isShowing in
+            // When user navigates back from results (showResults becomes false)
+            if !isShowing && isShowingResults {
+                isShowingResults = false
+                viewModel.product = nil
+                scannedCode = ""
+                lastSavedBarcode = ""
+                // Resume scanning if in camera mode
+                if mode == .camera {
+                    isScanning = true
+                }
+            }
         }
         .onChange(of: pickedImage) { image in
             guard let image = image else { return }
-            // Run barcode detection on the picked image
             BarcodeDetector.detectBarcode(from: image) { payload in
                 DispatchQueue.main.async {
                     if let code = payload {
@@ -191,21 +197,133 @@ struct ScanView: View {
             }
         }
         .onAppear {
-            // Reset any previous state
-            scannedCode = ""
-            isScanning = false
-            lastSavedBarcode = ""
+            if let initialBarcode = initialBarcode {
+                scannedCode = initialBarcode
+                viewModel.fetchProduct(barcode: initialBarcode)
+            } else if mode == .camera && !isShowingResults {
+                isScanning = true
+            }
         }
         .sheet(isPresented: $showImagePicker) {
             ImagePicker(selectedImage: $pickedImage)
         }
     }
     
-    // Helper function to save scan to history
+    @ViewBuilder
+    private func cameraSection() -> some View {
+        VStack(spacing: 12) {
+            if isScanning {
+                BarcodeScannerView(scannedCode: $scannedCode, isScanning: $isScanning)
+                    .frame(height: 300)
+                    .cornerRadius(16)
+                    .shadow(color: Color.black.opacity(0.1), radius: 12, x: 0, y: 4)
+            } else {
+                Rectangle()
+                    .fill(themeManager.cardBackgroundColor)
+                    .frame(height: 300)
+                    .cornerRadius(16)
+                    .overlay(
+                        VStack(spacing: 12) {
+                            Image(systemName: "camera.viewfinder")
+                                .font(.system(size: 48))
+                                .foregroundColor(themeManager.primaryColor)
+                            Text("Camera Ready")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(themeManager.textColor)
+                            #if targetEnvironment(simulator)
+                            Text("⚠️ Not available in simulator")
+                                .font(.caption)
+                                .foregroundColor(themeManager.warningColor)
+                            #endif
+                        }
+                    )
+                    .shadow(color: Color.black.opacity(0.1), radius: 12, x: 0, y: 4)
+            }
+            
+            Button(action: {
+                isScanning.toggle()
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: isScanning ? "stop.fill" : "play.fill")
+                    Text(isScanning ? "Stop Scanning" : "Start Scanning")
+                }
+            }
+            .gradientButton(theme: themeManager)
+        }
+        .padding(16)
+    }
+    
+    @ViewBuilder
+    private func imageSection() -> some View {
+        VStack(spacing: 12) {
+            if let img = pickedImage {
+                Image(uiImage: img)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 300)
+                    .cornerRadius(16)
+                    .shadow(color: Color.black.opacity(0.1), radius: 12, x: 0, y: 4)
+            } else {
+                Rectangle()
+                    .fill(themeManager.cardBackgroundColor)
+                    .frame(height: 300)
+                    .cornerRadius(16)
+                    .overlay(
+                        VStack(spacing: 12) {
+                            Image(systemName: "photo.fill")
+                                .font(.system(size: 48))
+                                .foregroundColor(themeManager.primaryColor)
+                            Text("No Image Selected")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(themeManager.textColor)
+                        }
+                    )
+                    .shadow(color: Color.black.opacity(0.1), radius: 12, x: 0, y: 4)
+            }
+            
+            Button(action: { showImagePicker = true }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "photo.on.rectangle")
+                    Text("Pick from Gallery")
+                }
+            }
+            .gradientButton(theme: themeManager)
+        }
+        .padding(16)
+    }
+    
+    @ViewBuilder
+    private func manualSection() -> some View {
+        VStack(spacing: 12) {
+            VStack(spacing: 12) {
+                TextField("Enter barcode", text: $manualCode)
+                    .keyboardType(.numberPad)
+                    .padding(12)
+                    .background(themeManager.secondaryColor)
+                    .cornerRadius(12)
+                    .foregroundColor(themeManager.textColor)
+                
+                Button(action: {
+                    let code = manualCode.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !code.isEmpty else { return }
+                    scannedCode = code
+                    viewModel.fetchProduct(barcode: code)
+                    manualCode = ""
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                        Text("Fetch Product")
+                    }
+                }
+                .gradientButton(theme: themeManager)
+            }
+            .modernCard(theme: themeManager)
+        }
+        .padding(16)
+    }
+    
     private func saveToHistory(product: ProductDetails) {
         let productName = product.productName ?? "Unknown Product"
-        
-        // Check if product has blacklisted ingredients
         let matchedIngredients = product.ingredients?.filter { ingredient in
             guard let text = ingredient.text else { return false }
             return blacklistStore.items.contains { text.localizedCaseInsensitiveContains($0) }
@@ -214,12 +332,38 @@ struct ScanView: View {
         let hadBlacklistedIngredients = !matchedIngredients.isEmpty
         let blacklistedList = matchedIngredients.compactMap { $0.text }
         
-        // Save to history
         historyStore.addScan(
             barcode: scannedCode,
             productName: productName,
             hadBlacklistedIngredients: hadBlacklistedIngredients,
             blacklistedIngredients: blacklistedList
         )
+    }
+}
+
+// Modern mode button component
+struct ModeButton: View {
+    let title: String
+    let icon: String
+    let isSelected: Bool
+    @ObservedObject var theme: ThemeManager
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 20, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isSelected ? Color(red: 0.0, green: 0.7, blue: 0.9) : theme.cardBackgroundColor)
+            )
+            .foregroundColor(isSelected ? .white : theme.textColor)
+        }
     }
 }

@@ -9,71 +9,113 @@ import Foundation
 import SwiftUI
 
 struct BlacklistView: View {
-    @State private var items: [String] = []
+    @EnvironmentObject var blacklistStore: BlacklistStore
+    @EnvironmentObject var themeManager: ThemeManager
     @State private var newIngredient: String = ""
     @State private var showCatalogPicker: Bool = false
     @State private var showConfirmDeleteIndex: Int? = nil
-    private let defaultsKey = "blacklist_items_v1"
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                TextField("Add ingredient", text: $newIngredient)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .autocapitalization(.words)
-                Button(action: addIngredient) {
-                    Text("Add")
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color.accentColor)
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
+        ZStack {
+            themeManager.backgroundColor
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Header
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Manage Blacklist")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(themeManager.textColor)
+                    Text("\(blacklistStore.items.count) ingredients")
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundColor(themeManager.secondaryTextColor)
                 }
-                Button(action: { showCatalogPicker = true }) {
-                    Image(systemName: "plus.square.on.square")
-                        .padding(8)
-                        .background(Color(UIColor.secondarySystemBackground))
-                        .cornerRadius(8)
-                }
-            }
-            .padding()
-
-            Divider()
-
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 8, pinnedViews: []) {
-                    ForEach(items.indices, id: \.self) { index in
-                        let ingredient = items[index]
-                        HStack {
-                            Text(ingredient)
-                                .padding(.vertical, 10)
-                                .padding(.horizontal)
-                                .background(Color(UIColor.secondarySystemBackground))
-                                .cornerRadius(8)
-
-                            Spacer()
-
-                            Button(action: { showConfirmDeleteIndex = index }) {
-                                Image(systemName: "trash")
-                                    .foregroundColor(.red)
-                            }
-                            .buttonStyle(BorderlessButtonStyle())
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                
+                // Add ingredient section
+                VStack(spacing: 12) {
+                    HStack(spacing: 12) {
+                        TextField("Add ingredient", text: $newIngredient)
+                            .padding(12)
+                            .background(themeManager.secondaryColor)
+                            .cornerRadius(12)
+                            .foregroundColor(themeManager.textColor)
+                        
+                        Button(action: addIngredient) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 24))
+                                .foregroundColor(themeManager.primaryColor)
                         }
-                        .padding(.horizontal)
+                        
+                        Button(action: { showCatalogPicker = true }) {
+                            Image(systemName: "list.bullet.circle.fill")
+                                .font(.system(size: 24))
+                                .foregroundColor(themeManager.accentColor)
+                        }
+                    }
+                    .padding(16)
+                    .background(themeManager.cardBackgroundColor)
+                    .cornerRadius(16)
+                    .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
+                }
+                .padding(16)
+                
+                // Ingredients list
+                if blacklistStore.items.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 48))
+                            .foregroundColor(themeManager.successColor)
+                        Text("No ingredients blacklisted")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(themeManager.textColor)
+                        Text("Add ingredients to avoid")
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundColor(themeManager.secondaryTextColor)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 12) {
+                            ForEach(blacklistStore.items.indices, id: \.self) { index in
+                                let ingredient = blacklistStore.items[index]
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(ingredient)
+                                            .font(.system(size: 16, weight: .semibold))
+                                            .foregroundColor(themeManager.textColor)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Button(action: { showConfirmDeleteIndex = index }) {
+                                        Image(systemName: "trash.circle.fill")
+                                            .font(.system(size: 20))
+                                            .foregroundColor(themeManager.errorColor)
+                                    }
+                                }
+                                .modernCard(theme: themeManager)
+                            }
+                            .onMove(perform: { source, destination in
+                                blacklistStore.move(from: source, to: destination)
+                            })
+                        }
+                        .padding(16)
                     }
                 }
-                .padding(.vertical)
+                
+                Spacer()
             }
         }
-        .navigationTitle("Blacklisted Ingredients")
+        .navigationBarTitleDisplayMode(.inline)
         .alert("Remove Ingredient", isPresented: Binding(
             get: { showConfirmDeleteIndex != nil },
             set: { if !$0 { showConfirmDeleteIndex = nil } }
         ), presenting: showConfirmDeleteIndex) { idx in
             Button("Remove", role: .destructive) {
-                if items.indices.contains(idx) {
-                    items.remove(at: idx)
-                    saveItems()
+                if blacklistStore.items.indices.contains(idx) {
+                    blacklistStore.remove(at: idx)
                 }
                 showConfirmDeleteIndex = nil
             }
@@ -81,18 +123,13 @@ struct BlacklistView: View {
                 showConfirmDeleteIndex = nil
             }
         } message: { idx in
-            Text("Remove \(items.indices.contains(idx) ? items[idx] : "this item") from blacklist?")
+            Text("Remove \(blacklistStore.items.indices.contains(idx) ? blacklistStore.items[idx] : "this item") from blacklist?")
         }
-        .onAppear(perform: loadItems)
         .sheet(isPresented: $showCatalogPicker) {
-            CatalogPickerView(onAdd: { selections in
+            CatalogPickerView(theme: themeManager, onAdd: { selections in
                 for s in selections {
-                    let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !trimmed.isEmpty && !items.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) {
-                        items.append(trimmed)
-                    }
+                    blacklistStore.add(s)
                 }
-                saveItems()
                 showCatalogPicker = false
             })
         }
@@ -101,57 +138,22 @@ struct BlacklistView: View {
     private func addIngredient() {
         let trimmed = newIngredient.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        // Avoid duplicates (case-insensitive)
-        if !items.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) {
-            items.append(trimmed)
-            saveItems()
-        }
+        blacklistStore.add(trimmed)
         newIngredient = ""
-    }
-
-    private func loadItems() {
-        if let data = UserDefaults.standard.data(forKey: defaultsKey),
-           let decoded = try? JSONDecoder().decode([String].self, from: data) {
-            items = decoded
-        } else {
-            items = ["Gelatin", "Peanuts", "Palm Oil"]
-            saveItems()
-        }
-    }
-
-    private func saveItems() {
-        if let data = try? JSONEncoder().encode(items) {
-            UserDefaults.standard.set(data, forKey: defaultsKey)
-        }
     }
 }
 
-// Simple local catalog & picker for adding ingredients from a predefined list
+// Modern catalog picker
 struct CatalogPickerView: View {
     @Environment(\.presentationMode) private var presentation
+    @ObservedObject var theme: ThemeManager
     @State private var search: String = ""
     @State private var selected: Set<String> = []
 
     var onAdd: ([String]) -> Void
 
     private var catalog: [String] = {
-        // Try to load a bundled `ingredients.json` (array of strings). If the project
-        // doesn't include `Models/IngredientCatalog.swift` in the target, this still
-        // allows using a bundled JSON resource. Falls back to a compact built-in list.
-        if let url = Bundle.main.url(forResource: "ingredients", withExtension: "json"),
-           let data = try? Data(contentsOf: url),
-           let decoded = try? JSONDecoder().decode([String].self, from: data) {
-            return decoded.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-                .reduce(into: [String]()) { acc, s in
-                    if !acc.contains(where: { $0.caseInsensitiveCompare(s) == .orderedSame }) {
-                        acc.append(s)
-                    }
-                }
-                .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-        }
-
-        return [
+        [
             "Sugar", "Salt", "Palm Oil", "Soy", "Soya Lecithin", "Peanuts", "Peanut",
             "Milk", "Whey", "Casein", "Egg", "Gelatin", "Wheat", "Barley",
             "Rye", "Oats", "Gluten", "Almonds", "Cashews", "Hazelnuts", "Tree Nuts",
@@ -163,7 +165,8 @@ struct CatalogPickerView: View {
         ]
     }()
 
-    init(onAdd: @escaping ([String]) -> Void) {
+    init(theme: ThemeManager, onAdd: @escaping ([String]) -> Void) {
+        self.theme = theme
         self.onAdd = onAdd
     }
 
@@ -174,12 +177,36 @@ struct CatalogPickerView: View {
     }
 
     var body: some View {
-        NavigationView {
-            VStack {
-                TextField("Search catalog", text: $search)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .padding()
-
+        ZStack {
+            theme.backgroundColor
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Header
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Ingredient Catalog")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(theme.textColor)
+                    Text("Add from \(selected.count) selected")
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundColor(theme.secondaryTextColor)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                
+                // Search
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(theme.secondaryTextColor)
+                    TextField("Search", text: $search)
+                        .foregroundColor(theme.textColor)
+                }
+                .padding(12)
+                .background(theme.secondaryColor)
+                .cornerRadius(12)
+                .padding(16)
+                
+                // List
                 List(filtered, id: \.self) { item in
                     Button(action: {
                         if selected.contains(item) { selected.remove(item) }
@@ -187,24 +214,39 @@ struct CatalogPickerView: View {
                     }) {
                         HStack {
                             Text(item)
+                                .foregroundColor(theme.textColor)
                             Spacer()
-                            if selected.contains(item) { Image(systemName: "checkmark") }
+                            if selected.contains(item) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(theme.primaryColor)
+                            }
                         }
                     }
-                    .buttonStyle(PlainButtonStyle())
                 }
-            }
-            .navigationTitle("Add from Catalog")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { presentation.wrappedValue.dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add Selected") {
-                        onAdd(Array(selected))
+                .scrollContentBackground(.hidden)
+                .background(theme.backgroundColor)
+                
+                // Actions
+                HStack(spacing: 12) {
+                    Button(action: { presentation.wrappedValue.dismiss() }) {
+                        Text("Cancel")
+                            .frame(maxWidth: .infinity)
+                            .padding(12)
+                            .background(theme.secondaryColor)
+                            .cornerRadius(12)
+                            .foregroundColor(theme.textColor)
                     }
+                    
+                    Button(action: {
+                        onAdd(Array(selected))
+                    }) {
+                        Text("Add Selected")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .gradientButton(theme: theme)
                     .disabled(selected.isEmpty)
                 }
+                .padding(16)
             }
         }
     }

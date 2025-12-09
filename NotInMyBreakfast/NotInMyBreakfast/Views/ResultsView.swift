@@ -9,137 +9,214 @@ import Foundation
 import SwiftUI
 import UIKit
 
-// Uses centralized `Models/IngredientCatalog.swift` when available.
-
 struct ResultsView: View {
     private let details: ProductDetails
     private let productImage: UIImage?
     @EnvironmentObject var blacklistStore: BlacklistStore
+    @EnvironmentObject var themeManager: ThemeManager
     @State private var showCatalogPicker: Bool = false
 
-    // Accept ProductDetails directly
     init(product: ProductDetails, image: UIImage? = nil) {
         self.details = product
         self.productImage = image
     }
 
-    // Accept the API wrapper Product and extract details safely
     init(product: Product, image: UIImage? = nil) {
         self.details = product.product ?? ProductDetails(productName: nil, ingredientsText: nil, ingredients: nil, imageUrl: nil)
         self.productImage = image
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Product: \(details.productName ?? "Unknown")")
-                .font(.headline)
-
-            // Product image (if available) — prefer the image passed from the scanner/picker
-            if let img = productImage {
-                Image(uiImage: img)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(height: 200)
-                    .cornerRadius(8)
-                    .shadow(radius: 4)
-            } else if let imageUrlString = details.imageUrl, let url = URL(string: imageUrlString) {
-                // Prefer API-provided image when available
-                if #available(iOS 15.0, *) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .empty:
-                            ProgressView()
-                                .frame(height: 200)
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFit()
-                                .frame(height: 200)
-                                .cornerRadius(8)
-                                .shadow(radius: 4)
-                        case .failure:
-                            Rectangle()
-                                .fill(Color.secondary.opacity(0.12))
-                                .frame(height: 200)
-                                .cornerRadius(8)
-                                .overlay(Image(systemName: "photo").font(.largeTitle).foregroundColor(.secondary))
-                        @unknown default:
-                            EmptyView()
+        ZStack {
+            themeManager.backgroundColor
+                .ignoresSafeArea()
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    // Product image
+                    productImageView()
+                        .frame(height: 280)
+                        .cornerRadius(20)
+                        .shadow(color: Color.black.opacity(0.15), radius: 12, x: 0, y: 6)
+                    
+                    // Product info
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(details.productName ?? "Unknown Product")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundColor(themeManager.textColor)
+                        
+                        if let text = details.ingredientsText {
+                            Text(text)
+                                .font(.system(size: 12, weight: .regular))
+                                .foregroundColor(themeManager.secondaryTextColor)
+                                .lineLimit(3)
                         }
                     }
-                } else {
-                    // Fallback: show placeholder when AsyncImage isn't available
-                    Rectangle()
-                        .fill(Color.secondary.opacity(0.12))
-                        .frame(height: 200)
-                        .cornerRadius(8)
-                        .overlay(
-                            VStack {
-                                Image(systemName: "photo")
-                                    .font(.largeTitle)
-                                    .foregroundColor(.secondary)
-                                Text("No product image")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        )
-                }
-            } else {
-                // Placeholder when no image is available
-                Rectangle()
-                    .fill(Color.secondary.opacity(0.12))
-                    .frame(height: 200)
-                    .cornerRadius(8)
-                    .overlay(
-                        VStack {
-                            Image(systemName: "photo")
-                                .font(.largeTitle)
-                                .foregroundColor(.secondary)
-                            Text("No product image")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                    .modernCard(theme: themeManager)
+                    
+                    // Ingredients check result
+                    ingredientsCheckView()
+                    
+                    // All ingredients
+                    allIngredientsView()
+                    
+                    // Add to blacklist button
+                    Button(action: { showCatalogPicker = true }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "plus.circle.fill")
+                            Text("Add More to Blacklist")
                         }
-                    )
-            }
-
-            // Use shared blacklist store to find matches (only show blacklisted items)
-            let matchedIngredients = details.ingredients?.filter { ingredient in
-                guard let text = ingredient.text else { return false }
-                return blacklistStore.items.contains { text.localizedCaseInsensitiveContains($0) }
-            } ?? []
-
-            if !matchedIngredients.isEmpty {
-                Text("⚠️ Blacklisted Ingredients Found:")
-                    .font(.headline)
-                ForEach(matchedIngredients, id: \.id) { ingredient in
-                    Text(ingredient.text ?? "")
+                    }
+                    .gradientButton(theme: themeManager)
+                    
+                    Spacer()
+                        .frame(height: 10)
                 }
-            } else {
-                Text("✅ No blacklisted ingredients found")
+                .padding(16)
             }
-
-            Divider().padding(.vertical)
-
-            Button(action: { showCatalogPicker = true }) {
-                Label("Select Ingredients to Blacklist", systemImage: "plus.circle")
-            }
-            .padding(.top)
-
-            Spacer()
         }
-        .padding()
-        .navigationTitle("Results")
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showCatalogPicker) {
-            IngredientCatalogPicker(catalog: productCatalog(), onAdd: { selections in
+            IngredientCatalogPicker(theme: themeManager, catalog: productCatalog(), onAdd: { selections in
                 for s in selections { blacklistStore.add(s) }
                 showCatalogPicker = false
             })
             .environmentObject(blacklistStore)
         }
     }
+    
+    // MARK: - Helper Views
+    
+    @ViewBuilder
+    private func ingredientsCheckView() -> some View {
+        let matchedIngredients = details.ingredients?.filter { ingredient in
+            guard let text = ingredient.text else { return false }
+            return blacklistStore.items.contains { text.localizedCaseInsensitiveContains($0) }
+        } ?? []
+        
+        if !matchedIngredients.isEmpty {
+            VStack(spacing: 12) {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(themeManager.warningColor)
+                    Text("Blacklisted Ingredients Found")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(themeManager.textColor)
+                }
+                
+                VStack(spacing: 8) {
+                    ForEach(matchedIngredients, id: \.id) { ingredient in
+                        HStack {
+                            Circle()
+                                .fill(themeManager.warningColor)
+                                .frame(width: 6, height: 6)
+                            Text(ingredient.text ?? "")
+                                .font(.system(size: 14, weight: .regular))
+                                .foregroundColor(themeManager.textColor)
+                            Spacer()
+                        }
+                    }
+                }
+            }
+            .padding(16)
+            .background(themeManager.warningColor.opacity(0.08))
+            .cornerRadius(16)
+            .border(themeManager.warningColor.opacity(0.3), width: 1)
+        } else {
+            VStack(spacing: 12) {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(themeManager.successColor)
+                    Text("Safe Product")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(themeManager.textColor)
+                }
+                Text("No blacklisted ingredients detected")
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(themeManager.secondaryTextColor)
+            }
+            .padding(16)
+            .background(themeManager.successColor.opacity(0.08))
+            .cornerRadius(16)
+            .border(themeManager.successColor.opacity(0.3), width: 1)
+        }
+    }
+    
+    @ViewBuilder
+    private func allIngredientsView() -> some View {
+        if let ingredients = details.ingredients, !ingredients.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("All Ingredients")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(themeManager.textColor)
+                
+                VStack(spacing: 6) {
+                    ForEach(ingredients, id: \.id) { ingredient in
+                        HStack {
+                            Text(ingredient.text ?? "Unknown")
+                                .font(.system(size: 13, weight: .regular))
+                                .foregroundColor(themeManager.secondaryTextColor)
+                            Spacer()
+                        }
+                    }
+                }
+            }
+            .modernCard(theme: themeManager)
+        }
+    }
+    
+    @ViewBuilder
+    private func productImageView() -> some View {
+        if let img = productImage {
+            Image(uiImage: img)
+                .resizable()
+                .scaledToFill()
+        } else if let imageUrlString = details.imageUrl, let url = URL(string: imageUrlString) {
+            if #available(iOS 15.0, *) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .empty:
+                        ZStack {
+                            themeManager.cardBackgroundColor
+                            ProgressView()
+                        }
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    case .failure:
+                        ZStack {
+                            themeManager.cardBackgroundColor
+                            Image(systemName: "photo")
+                                .font(.system(size: 48))
+                                .foregroundColor(themeManager.secondaryTextColor)
+                        }
+                    @unknown default:
+                        ZStack {
+                            themeManager.cardBackgroundColor
+                        }
+                    }
+                }
+            } else {
+                ZStack {
+                    themeManager.cardBackgroundColor
+                    Image(systemName: "photo")
+                        .font(.system(size: 48))
+                        .foregroundColor(themeManager.secondaryTextColor)
+                }
+            }
+        } else {
+            ZStack {
+                themeManager.cardBackgroundColor
+                Image(systemName: "photo")
+                    .font(.system(size: 48))
+                    .foregroundColor(themeManager.secondaryTextColor)
+            }
+        }
+    }
 
-    // Build a catalog from the product's API ingredient list if available,
-    // otherwise fall back to the bundled/global catalog.
     private func productCatalog() -> [String] {
         guard let ingredients = details.ingredients, !ingredients.isEmpty else {
             return IngredientCatalog.load()
@@ -165,6 +242,7 @@ struct ResultsView: View {
 private struct IngredientCatalogPicker: View {
     @Environment(\.presentationMode) private var presentation
     @EnvironmentObject var blacklistStore: BlacklistStore
+    @ObservedObject var theme: ThemeManager
     @State private var search: String = ""
     @State private var selected: Set<String> = []
 
@@ -180,11 +258,21 @@ private struct IngredientCatalogPicker: View {
     }
 
     var body: some View {
-        NavigationView {
+        ZStack {
+            theme.backgroundColor
+                .ignoresSafeArea()
+            
             VStack {
-                TextField("Search ingredients", text: $search)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .padding()
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(theme.secondaryTextColor)
+                    TextField("Search", text: $search)
+                        .foregroundColor(theme.textColor)
+                }
+                .padding(12)
+                .background(theme.secondaryColor)
+                .cornerRadius(12)
+                .padding()
 
                 List(filtered, id: \.self) { item in
                     Button(action: {
@@ -193,27 +281,38 @@ private struct IngredientCatalogPicker: View {
                     }) {
                         HStack {
                             Text(item)
+                                .foregroundColor(theme.textColor)
                             Spacer()
                             if selected.contains(item) {
-                                Image(systemName: "checkmark")
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(theme.primaryColor)
                             }
                         }
                     }
-                    .buttonStyle(PlainButtonStyle())
                 }
-            }
-            .navigationTitle("Ingredient Catalog")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { presentation.wrappedValue.dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add Selected") {
-                        let addList = Array(selected)
-                        onAdd(addList)
+                .scrollContentBackground(.hidden)
+                .background(theme.backgroundColor)
+                
+                HStack(spacing: 12) {
+                    Button(action: { presentation.wrappedValue.dismiss() }) {
+                        Text("Cancel")
+                            .frame(maxWidth: .infinity)
+                            .padding(12)
+                            .background(theme.secondaryColor)
+                            .cornerRadius(12)
+                            .foregroundColor(theme.textColor)
                     }
+                    
+                    Button(action: {
+                        onAdd(Array(selected))
+                    }) {
+                        Text("Add Selected")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .gradientButton(theme: theme)
                     .disabled(selected.isEmpty)
                 }
+                .padding()
             }
         }
     }
