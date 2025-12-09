@@ -32,24 +32,25 @@ struct ResultsView: View {
                 .ignoresSafeArea()
             
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // Product image
+                VStack(alignment: .leading, spacing: 12) {
+                    // Product image - responsive height
                     productImageView()
-                        .frame(height: 280)
+                        .frame(height: 200)
+                        .frame(maxWidth: .infinity)
                         .cornerRadius(20)
                         .shadow(color: Color.black.opacity(0.15), radius: 12, x: 0, y: 6)
                     
                     // Product info
                     VStack(alignment: .leading, spacing: 12) {
                         Text(details.productName ?? "Unknown Product")
-                            .font(.system(size: 24, weight: .bold))
+                            .font(.system(size: 20, weight: .bold))
                             .foregroundColor(themeManager.textColor)
                         
                         if let text = details.ingredientsText {
                             Text(text)
-                                .font(.system(size: 12, weight: .regular))
+                                .font(.system(size: 11, weight: .regular))
                                 .foregroundColor(themeManager.secondaryTextColor)
-                                .lineLimit(3)
+                                .lineLimit(2)
                         }
                     }
                     .modernCard(theme: themeManager)
@@ -70,9 +71,9 @@ struct ResultsView: View {
                     .gradientButton(theme: themeManager)
                     
                     Spacer()
-                        .frame(height: 10)
+                        .frame(height: 5)
                 }
-                .padding(16)
+                .padding(12)
             }
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -95,49 +96,49 @@ struct ResultsView: View {
         } ?? []
         
         if !matchedIngredients.isEmpty {
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 18))
+                        .font(.system(size: 16))
                         .foregroundColor(themeManager.warningColor)
                     Text("Blacklisted Ingredients Found")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(themeManager.textColor)
                 }
                 
-                VStack(spacing: 8) {
+                VStack(spacing: 6) {
                     ForEach(matchedIngredients, id: \.id) { ingredient in
                         HStack {
                             Circle()
                                 .fill(themeManager.warningColor)
-                                .frame(width: 6, height: 6)
+                                .frame(width: 5, height: 5)
                             Text(ingredient.text ?? "")
-                                .font(.system(size: 14, weight: .regular))
+                                .font(.system(size: 12, weight: .regular))
                                 .foregroundColor(themeManager.textColor)
                             Spacer()
                         }
                     }
                 }
             }
-            .padding(16)
+            .padding(12)
             .background(themeManager.warningColor.opacity(0.08))
             .cornerRadius(16)
             .border(themeManager.warningColor.opacity(0.3), width: 1)
         } else {
-            VStack(spacing: 12) {
+            VStack(spacing: 8) {
                 HStack {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 18))
+                        .font(.system(size: 16))
                         .foregroundColor(themeManager.successColor)
                     Text("Safe Product")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(themeManager.textColor)
                 }
                 Text("No blacklisted ingredients detected")
-                    .font(.system(size: 12, weight: .regular))
+                    .font(.system(size: 11, weight: .regular))
                     .foregroundColor(themeManager.secondaryTextColor)
             }
-            .padding(16)
+            .padding(12)
             .background(themeManager.successColor.opacity(0.08))
             .cornerRadius(16)
             .border(themeManager.successColor.opacity(0.3), width: 1)
@@ -147,19 +148,25 @@ struct ResultsView: View {
     @ViewBuilder
     private func allIngredientsView() -> some View {
         if let ingredients = details.ingredients, !ingredients.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 Text("All Ingredients")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(themeManager.textColor)
                 
-                VStack(spacing: 6) {
-                    ForEach(ingredients, id: \.id) { ingredient in
+                VStack(spacing: 4) {
+                    ForEach(ingredients.prefix(10), id: \.id) { ingredient in
                         HStack {
                             Text(ingredient.text ?? "Unknown")
-                                .font(.system(size: 13, weight: .regular))
+                                .font(.system(size: 12, weight: .regular))
                                 .foregroundColor(themeManager.secondaryTextColor)
                             Spacer()
                         }
+                    }
+                    if ingredients.count > 10 {
+                        Text("... and \(ingredients.count - 10) more")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundColor(themeManager.secondaryTextColor)
+                            .italic()
                     }
                 }
             }
