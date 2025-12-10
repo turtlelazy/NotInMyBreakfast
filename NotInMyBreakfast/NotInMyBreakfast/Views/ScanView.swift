@@ -126,7 +126,7 @@ struct ScanView: View {
                             .padding(16)
                         }
                         
-                        // Error message
+                        // Error message with retry option
                         if let error = viewModel.errorMessage {
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack(spacing: 12) {
@@ -140,6 +140,29 @@ struct ScanView: View {
                                 Text(error)
                                     .font(.system(size: 12, weight: .regular))
                                     .foregroundColor(themeManager.secondaryTextColor)
+                                
+                                // Retry button for barcode not found
+                                if error.contains("not found") {
+                                    Button(action: {
+                                        viewModel.errorMessage = nil
+                                        viewModel.product = nil
+                                        scannedCode = ""
+                                        if mode == .camera {
+                                            isScanning = true
+                                        }
+                                    }) {
+                                        HStack(spacing: 8) {
+                                            Image(systemName: "arrow.clockwise")
+                                            Text("Try Again")
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .foregroundColor(themeManager.primaryColor)
+                                        .padding(12)
+                                        .background(themeManager.primaryColor.opacity(0.1))
+                                        .cornerRadius(12)
+                                    }
+                                    .padding(.top, 8)
+                                }
                             }
                             .modernCard(theme: themeManager)
                             .padding(16)
@@ -154,6 +177,8 @@ struct ScanView: View {
         .onChange(of: scannedCode) { newCode in
             guard !newCode.isEmpty else { return }
             loadingProgress = 0.2
+            viewModel.errorMessage = nil  // Clear previous errors
+            viewModel.product = nil        // Clear previous product
             viewModel.fetchProduct(barcode: newCode)
         }
         .onChange(of: viewModel.product) { product in
