@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 import AVFoundation
 import UIKit
+import BreakfastUIKit
 
 struct ScanView: View {
     @State private var scannedCode: String = ""

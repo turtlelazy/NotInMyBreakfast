@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import BreakfastUIKit
 
 struct HistoryView: View {
     @EnvironmentObject var historyStore: HistoryStore

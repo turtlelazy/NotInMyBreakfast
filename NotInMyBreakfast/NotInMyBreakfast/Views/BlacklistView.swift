@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import BreakfastUIKit
 
 struct BlacklistView: View {
     @EnvironmentObject var blacklistStore: BlacklistStore

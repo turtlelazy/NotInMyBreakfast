@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 import UIKit
+import BreakfastUIKit
 
 struct ResultsView: View {
     private let details: ProductDetails

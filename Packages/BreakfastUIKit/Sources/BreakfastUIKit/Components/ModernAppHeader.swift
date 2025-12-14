@@ -59,24 +59,28 @@ public struct ModernAppHeader: View {
     }
 }
 
-#Preview {
-    struct PreviewWrapper: View {
-        @StateObject var theme = ThemeManager()
-        
-        var body: some View {
-            VStack {
-                ModernAppHeader(
-                    theme: theme,
-                    title: "Not in My Breakfast",
-                    subtitle: "What's in your hot pocket?",
-                    onThemeToggle: { theme.isDarkMode.toggle() }
-                )
-                Spacer()
-            }
-            .background(theme.backgroundColor)
-            .ignoresSafeArea()
-        }
-    }
+#if DEBUG
+private struct ModernAppHeaderPreviewWrapper: View {
+    @StateObject var theme = ThemeManager()
     
-    return PreviewWrapper()
+    var body: some View {
+        VStack {
+            ModernAppHeader(
+                theme: theme,
+                title: "Not in My Breakfast",
+                subtitle: "What's in your hot pocket?",
+                onThemeToggle: { theme.isDarkMode.toggle() }
+            )
+            Spacer()
+        }
+        .background(theme.backgroundColor)
+        .ignoresSafeArea()
+    }
 }
+
+struct ModernAppHeader_Previews: PreviewProvider {
+    static var previews: some View {
+        ModernAppHeaderPreviewWrapper()
+    }
+}
+#endif

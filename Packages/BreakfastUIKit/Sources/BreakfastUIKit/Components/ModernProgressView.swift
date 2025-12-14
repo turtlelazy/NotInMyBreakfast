@@ -103,21 +103,25 @@ public class ProgressCircleView: UIView {
     }
 }
 
-#Preview {
-    struct PreviewWrapper: View {
-        @State var progress = 0.7
-        
-        var body: some View {
-            VStack {
-                ModernProgressView(progress: $progress)
-                    .frame(width: 120, height: 120)
-                
-                Slider(value: $progress, in: 0...1)
-                    .padding()
-            }
-            .padding()
-        }
-    }
+#if DEBUG
+private struct ModernProgressViewPreviewWrapper: View {
+    @State var progress = 0.7
     
-    return PreviewWrapper()
+    var body: some View {
+        VStack {
+            ModernProgressView(progress: $progress)
+                .frame(width: 120, height: 120)
+            
+            Slider(value: $progress, in: 0...1)
+                .padding()
+        }
+        .padding()
+    }
 }
+
+struct ModernProgressView_Previews: PreviewProvider {
+    static var previews: some View {
+        ModernProgressViewPreviewWrapper()
+    }
+}
+#endif
