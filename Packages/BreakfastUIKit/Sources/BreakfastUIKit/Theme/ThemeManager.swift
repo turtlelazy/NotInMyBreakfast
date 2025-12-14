@@ -8,7 +8,8 @@
 import SwiftUI
 
 public class ThemeManager: ObservableObject {
-    @AppStorage("app_theme") public var isDarkMode: Bool = false {
+    // Make the AppStorage store explicit to avoid SPM/preview edge cases
+    @AppStorage("app_theme", store: UserDefaults.standard) public var isDarkMode: Bool = false {
         didSet {
             objectWillChange.send()
         }
