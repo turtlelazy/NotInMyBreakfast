@@ -13,11 +13,13 @@ struct NotInMyBreakfastApp: App {
     @StateObject private var blacklistStore = BlacklistStore()
     @StateObject private var historyStore = HistoryStore()
     @StateObject private var themeManager = ThemeManager()
+    @State private var navigationPath = NavigationPath()
     @State private var deepLink: DeepLink? = nil
+    @State private var hasHandledColdStart = false
 
     var body: some Scene {
         WindowGroup {
-            NavigationView {
+            NavigationStack(path: $navigationPath) {
                 ZStack {
                     themeManager.backgroundColor
                         .ignoresSafeArea()
@@ -33,22 +35,42 @@ struct NotInMyBreakfastApp: App {
                         Spacer()
                         
                         homeContent()
-                            .navigationDestination(for: DeepLink.self) { link in
-                                deepLinkView(for: link)
-                            }
                         
                         Spacer()
                     }
+                }
+                .navigationDestination(for: DeepLink.self) { link in
+                    deepLinkView(for: link)
                 }
             }
             .environmentObject(blacklistStore)
             .environmentObject(historyStore)
             .environmentObject(themeManager)
             .onOpenURL { url in
-                deepLink = DeepLink(url: url)
+                handleDeepLink(url: url)
+            }
+            .onAppear {
+                // Handle cold-start deep linking
+                if !hasHandledColdStart {
+                    hasHandledColdStart = true
+                    if let link = deepLink, link != .home && link != .invalid {
+                        navigationPath.append(link)
+                    }
+                }
+            }
+            .onChange(of: deepLink) { newValue in
+                // Handle deep link changes after app is running
+                if hasHandledColdStart, let link = newValue, link != .home && link != .invalid {
+                    navigationPath.append(link)
+                }
             }
             .preferredColorScheme(themeManager.isDarkMode ? .dark : .light)
         }
+    }
+    
+    private func handleDeepLink(url: URL) {
+        let link = DeepLink(url: url)
+        deepLink = link
     }
     
     @ViewBuilder
@@ -144,67 +166,6 @@ struct NotInMyBreakfastApp: App {
                 .environmentObject(themeManager)
         case .invalid:
             Text("Invalid deep link")
-        }
-    }
-}
-
-// MARK: - Deep Linking
-
-public enum DeepLink: Hashable {
-    case home
-    case scanProduct(barcode: String)
-    case viewBlacklist
-    case viewHistory
-    case invalid
-    
-    public init(url: URL) {
-        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
-            self = .invalid
-            return
-        }
-        
-        self = DeepLink.parse(components: components)
-    }
-    
-    private static func parse(components: URLComponents) -> DeepLink {
-        guard let host = components.host else {
-            return .home
-        }
-        
-        switch host.lowercased() {
-        case "home":
-            return .home
-            
-        case "scan":
-            if let barcode = components.queryItems?.first(where: { $0.name == "barcode" })?.value,
-               !barcode.isEmpty {
-                return .scanProduct(barcode: barcode)
-            }
-            return .invalid
-            
-        case "blacklist":
-            return .viewBlacklist
-            
-        case "history":
-            return .viewHistory
-            
-        default:
-            return .invalid
-        }
-    }
-    
-    public func toURLString() -> String {
-        switch self {
-        case .home:
-            return "notinmybreakfast://home"
-        case .scanProduct(let barcode):
-            return "notinmybreakfast://scan?barcode=\(barcode)"
-        case .viewBlacklist:
-            return "notinmybreakfast://blacklist"
-        case .viewHistory:
-            return "notinmybreakfast://history"
-        case .invalid:
-            return ""
         }
     }
 }

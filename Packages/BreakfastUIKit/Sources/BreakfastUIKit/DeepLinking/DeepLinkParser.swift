@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum DeepLink {
+public enum DeepLink: Hashable, Equatable {
     case home
     case scanProduct(barcode: String)
     case viewBlacklist

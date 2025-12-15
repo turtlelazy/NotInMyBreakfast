@@ -2,15 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSCameraUsageDescription</key>
-	<string>This app needs camera access to scan barcodes on food products.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.notinmybreakfast.app</string>
+			<string>com.notinmybreakfast.deeplink</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>notinmybreakfast</string>
