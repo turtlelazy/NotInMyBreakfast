@@ -2,6 +2,8 @@
 
 A SwiftUI-based iOS app that helps users scan food products and check for blacklisted ingredients. Simply input a barcode number, and the app fetches product details from OpenFoodFacts API to identify any ingredients you want to avoid. The barcode scanning feature didn't work for some reason and was unable to debug in the moment.
 
+This project was worked on with Xcode version 14.2 on macOS Montery 12.7.5, and may not build out of box because of compatability issues. If there are any problems feel free to reach out.
+
 ## Features
 
 ### Core Functionality
